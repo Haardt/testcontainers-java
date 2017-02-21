@@ -1,8 +1,11 @@
 package org.testcontainers.dockerclient;
 
+import com.github.dockerjava.core.DefaultDockerClientConfig;
+import com.github.dockerjava.core.DockerClientConfig;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.io.IOUtils;
+import org.jetbrains.annotations.NotNull;
 
 import java.io.*;
 import java.net.InetSocketAddress;
@@ -11,11 +14,15 @@ import java.net.Socket;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
-public class NamedPipeSocketClientProviderStrategy extends UnixSocketClientProviderStrategy {
+public class NamedPipeSocketClientProviderStrategy extends DockerClientProviderStrategy {
+
+    private static final String NAMED_PIPE_FILE_NAME = "\\\\.\\pipe\\docker_engine";
+    private static final String PING_TIMEOUT_DEFAULT = "10";
+    private static final String PING_TIMEOUT_PROPERTY_NAME = "testcontainers.namedpipesocketprovider.timeout";
 
     @Override
     public void test() throws InvalidConfigurationException {
-        File file = new File("\\\\.\\pipe\\docker_engine");
+        File file = new File(NAMED_PIPE_FILE_NAME);
 
         if (!file.exists()) {
             throw new InvalidConfigurationException("this strategy only works with named pipe file");
@@ -36,6 +43,25 @@ public class NamedPipeSocketClientProviderStrategy extends UnixSocketClientProvi
         } finally {
             Runtime.getRuntime().addShutdownHook(new Thread(proxy::stop));
         }
+    }
+
+    @Override
+    public String getDescription() {
+        return "Named pipe socket \"" + NAMED_PIPE_FILE_NAME + "\" (via TCP proxy)";
+    }
+
+    @NotNull
+    protected DockerClientConfig tryConfiguration(String dockerHost) {
+        config = DefaultDockerClientConfig.createDefaultConfigBuilder()
+                .withDockerHost(dockerHost)
+                .withDockerTlsVerify(false)
+                .build();
+        client = getClientForConfig(config);
+
+        final int timeout = Integer.parseInt(System.getProperty(PING_TIMEOUT_PROPERTY_NAME, PING_TIMEOUT_DEFAULT));
+        ping(client, timeout);
+
+        return config;
     }
 
     @Slf4j
