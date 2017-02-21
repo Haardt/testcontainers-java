@@ -109,6 +109,7 @@ public class NamedPipeSocketClientProviderStrategy extends DockerClientProviderS
                                     inputFuture.get();
                                     outputFuture.get();
                                 }
+                                incomingSocket.close();
                                 return null;
                             });
 
