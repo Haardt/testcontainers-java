@@ -51,10 +51,10 @@ public class NamedPipeSocketClientProviderStrategy extends UnixSocketClientProvi
         }
 
         InetSocketAddress start() throws IOException {
-            return (InetSocketAddress) executorService.submit(() -> {
-                ServerSocket listenSocket = new ServerSocket();
-                listenSocket.bind(new InetSocketAddress("localhost", 0));
+            ServerSocket listenSocket = new ServerSocket();
+            listenSocket.bind(new InetSocketAddress("localhost", 0));
 
+            executorService.submit(() -> {
                 log.debug("Listening on {} and proxying to {}", listenSocket.getLocalSocketAddress(), randomAccessFile);
 
                 try {
@@ -87,8 +87,9 @@ public class NamedPipeSocketClientProviderStrategy extends UnixSocketClientProvi
                 } finally {
                     listenSocket.close();
                 }
-                return listenSocket.getLocalSocketAddress();
+                return null;
             });
+            return (InetSocketAddress) listenSocket.getLocalSocketAddress();
         }
 
         public void stop() {
