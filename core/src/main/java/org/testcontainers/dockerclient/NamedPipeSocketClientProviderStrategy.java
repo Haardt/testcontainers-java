@@ -13,6 +13,7 @@ import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 
 public class NamedPipeSocketClientProviderStrategy extends DockerClientProviderStrategy {
 
@@ -85,23 +86,30 @@ public class NamedPipeSocketClientProviderStrategy extends DockerClientProviderS
                             Socket incomingSocket = listenSocket.accept();
                             log.debug("Accepting incoming connection from {}", incomingSocket.getRemoteSocketAddress());
 
-                            RandomAccessFile randomAccessFile = new RandomAccessFile(file, "rw");
+                            executorService.submit(() -> {
+                                try (RandomAccessFile randomAccessFile = new RandomAccessFile(file, "rw")) {
+                                    Future<Long> inputFuture = executorService.submit(() -> {
+                                        try (
+                                                InputStream in = incomingSocket.getInputStream();
+                                                FileOutputStream out = new FileOutputStream(randomAccessFile.getFD())
+                                        ) {
+                                            return IOUtils.copyLarge(in, out);
+                                        }
+                                    });
 
-                            executorService.submit(() -> {
-                                try (
-                                        InputStream in = incomingSocket.getInputStream();
-                                        FileOutputStream out = new FileOutputStream(randomAccessFile.getFD())
-                                ) {
-                                    return IOUtils.copyLarge(in, out);
+                                    Future<Long> outputFuture = executorService.submit(() -> {
+                                        try (
+                                                FileInputStream in = new FileInputStream(randomAccessFile.getFD());
+                                                OutputStream out = incomingSocket.getOutputStream()
+                                        ) {
+                                            return IOUtils.copyLarge(in, out);
+                                        }
+                                    });
+
+                                    inputFuture.get();
+                                    outputFuture.get();
                                 }
-                            });
-                            executorService.submit(() -> {
-                                try (
-                                        FileInputStream in = new FileInputStream(randomAccessFile.getFD());
-                                        OutputStream out = incomingSocket.getOutputStream()
-                                ) {
-                                    return IOUtils.copyLarge(in, out);
-                                }
+                                return null;
                             });
 
                         } catch (IOException e) {
