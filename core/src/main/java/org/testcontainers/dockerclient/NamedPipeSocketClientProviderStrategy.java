@@ -63,8 +63,22 @@ public class NamedPipeSocketClientProviderStrategy extends UnixSocketClientProvi
                             Socket incomingSocket = listenSocket.accept();
                             log.debug("Accepting incoming connection from {}", incomingSocket.getRemoteSocketAddress());
 
-                            executorService.submit(() -> IOUtils.copyLarge(incomingSocket.getInputStream(), new FileOutputStream(randomAccessFile.getFD())));
-                            executorService.submit(() -> IOUtils.copyLarge(new FileInputStream(randomAccessFile.getFD()), incomingSocket.getOutputStream()));
+                            executorService.submit(() -> {
+                                try (
+                                        InputStream in = incomingSocket.getInputStream();
+                                        FileOutputStream out = new FileOutputStream(randomAccessFile.getFD())
+                                ) {
+                                    return IOUtils.copyLarge(in, out);
+                                }
+                            });
+                            executorService.submit(() -> {
+                                try (
+                                        FileInputStream in = new FileInputStream(randomAccessFile.getFD());
+                                        OutputStream out = incomingSocket.getOutputStream()
+                                ) {
+                                    return IOUtils.copyLarge(in, out);
+                                }
+                            });
 
                         } catch (IOException e) {
                             log.warn("", e);
