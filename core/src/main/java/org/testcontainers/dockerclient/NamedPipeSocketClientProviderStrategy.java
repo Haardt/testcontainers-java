@@ -2,7 +2,7 @@ package org.testcontainers.dockerclient;
 
 import com.github.dockerjava.core.DefaultDockerClientConfig;
 import com.github.dockerjava.core.DockerClientConfig;
-import lombok.SneakyThrows;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.io.IOUtils;
 import org.jetbrains.annotations.NotNull;
@@ -65,29 +65,27 @@ public class NamedPipeSocketClientProviderStrategy extends DockerClientProviderS
     }
 
     @Slf4j
+    @RequiredArgsConstructor
     static class NamedPipeProxy {
 
         final ExecutorService executorService = Executors.newCachedThreadPool();
 
-        RandomAccessFile randomAccessFile;
-
-        @SneakyThrows(FileNotFoundException.class)
-        public NamedPipeProxy(File file) {
-            randomAccessFile = new RandomAccessFile(file, "rw");
-        }
+        final File file;
 
         InetSocketAddress start() throws IOException {
             ServerSocket listenSocket = new ServerSocket();
             listenSocket.bind(new InetSocketAddress("localhost", 0));
 
             executorService.submit(() -> {
-                log.debug("Listening on {} and proxying to {}", listenSocket.getLocalSocketAddress(), randomAccessFile);
+                log.debug("Listening on {} and proxying to {}", listenSocket.getLocalSocketAddress(), file);
 
                 try {
                     while (!Thread.interrupted()) {
                         try {
                             Socket incomingSocket = listenSocket.accept();
                             log.debug("Accepting incoming connection from {}", incomingSocket.getRemoteSocketAddress());
+
+                            RandomAccessFile randomAccessFile = new RandomAccessFile(file, "rw");
 
                             executorService.submit(() -> {
                                 try (
